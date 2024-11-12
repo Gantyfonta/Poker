@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Texas Hold'em Poker</title>
+    <style>
+        body {
+            background-color: #006400;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #game {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        .hand, .community {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .card {
+            width: 60px;
+            height: 90px;
+            border: 1px solid #fff;
+            border-radius: 5px;
+            background-color: #fff;
+            color: #000;
+            line-height: 90px;
+            font-size: 24px;
+            margin-right: 5px;
+        }
+        .card.back {
+            background-color: #000;
+        }
+        #controls button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #fff;
+            color: #000;
+        }
+        #controls button:hover {
+            background-color: #ddd;
+        }
+        #balance, #pot {
+            font-size: 20px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <h1>Texas Hold'em Poker</h1>
+        <div id="balance">Balance: <span id="balance-amount">100</span> Bucks</div>
+        <div id="pot">Pot: <span id="pot-amount">0</span> Bucks</div>
+        <div class="hand" id="player-hand">
+            <h2>Your Hand</h2>
+            <div id="player-cards"></div>
+        </div>
+        <div class="community" id="community-cards">
+            <h2>Community Cards</h2>
+        </div>
+        <div class="hand" id="dealer-hand">
+            <h2>Dealer's Hand</h2>
+            <div id="dealer-cards"></div>
+        </div>
+        <div id="controls">
+            <button id="bet-btn">Bet</button>
+            <button id="call-btn">Call</button>
+            <button id="fold-btn">Fold</button>
+            <button id="new-hand-btn" style="display:none;">New Hand</button>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        const suits = ['♠', '♥', '♦', '♣'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        
+        let deck = [];
+        let playerHand = [];
+        let dealerHand = [];
+        let communityCards = [];
+        let balance = 100;
+        let pot = 0;
+        let betAmount = 10;
+        let playerFolded = false;
+
+        const playerCardsDiv = document.getElementById('player-cards');
+        const dealerCardsDiv = document.getElementById('dealer-cards');
+        const communityCardsDiv = document.getElementById('community-cards');
+        const messageDiv = document.getElementById('message');
+        const balanceSpan = document.getElementById('balance-amount');
+        const potSpan = document.getElementById('pot-amount');
+
+        const betBtn = document.getElementById('bet-btn');
+        const callBtn = document.getElementById('call-btn');
+        const foldBtn = document.getElementById('fold-btn');
+        const newHandBtn = document.getElementById('new-hand-btn');
+
+        function initializeDeck() {
+            deck = [];
+            for (let suit of suits) {
+                for (let value of values) {
+                    deck.push({suit, value});
+                }
+            }
+            shuffleDeck();
+        }
+
+        function shuffleDeck() {
+            for (let i = deck.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        function startNewHand() {
+            initializeDeck();
+            playerHand = [deck.pop(), deck.pop()];
+            dealerHand = [deck.pop(), deck.pop()];
+            communityCards = [];
+            pot = 0;
+            playerFolded = false;
+
+            balance -= betAmount;
+            pot += betAmount * 2;
+
+            balanceSpan.textContent = balance;
+            potSpan.textContent = pot;
+
+            renderCards();
+            messageDiv.textContent = 'Place your bet or call.';
+            betBtn.disabled = false;
+            callBtn.disabled = true;
+            foldBtn.disabled = false;
+            newHandBtn.style.display = 'none';
+        }
+
+        function renderCards() {
+            playerCardsDiv.innerHTML = '';
+            dealerCardsDiv.innerHTML = '';
+            communityCardsDiv.innerHTML = '';
+
+            for (let card of playerHand) {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('card');
+                cardDiv.textContent = card.value + card.suit;
+                playerCardsDiv.appendChild(cardDiv);
+            }
+
+            for (let i = 0; i < dealerHand.length; i++) {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('card');
+                if (i === 0) {
+                    cardDiv.textContent = dealerHand[i].value + dealerHand[i].suit;
+                } else {
+                    cardDiv.classList.add('back');
+                }
+                dealerCardsDiv.appendChild(cardDiv);
+            }
+
+            for (let card of communityCards) {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('card');
+                cardDiv.textContent = card.value + card.suit;
+                communityCardsDiv.appendChild(cardDiv);
+            }
+        }
+
+        function bet() {
+            pot += betAmount;
+            balance -= betAmount;
+            balanceSpan.textContent = balance;
+            potSpan.textContent = pot;
+            messageDiv.textContent = 'You bet 10 Bucks. Dealer calls.';
+            callBtn.disabled = false;
+            dealCommunityCards();
+        }
+
+        function call() {
+            messageDiv.textContent = 'You called. Revealing cards.';
+            revealDealerHand();
+            evaluateWinner();
+        }
+
+        function fold() {
+            playerFolded = true;
+            messageDiv.textContent = 'You folded. Dealer wins the pot.';
+            endHand();
+        }
+
+        function dealCommunityCards() {
+            if (communityCards.length === 0) {
+                communityCards.push(deck.pop(), deck.pop(), deck.pop()); // The Flop
+            } else if (communityCards.length === 3) {
+                communityCards.push(deck.pop()); // The Turn
+            } else if (communityCards.length === 4) {
+                communityCards.push(deck.pop()); // The River
+            }
+            renderCards();
+            if (communityCards.length === 5) {
+                evaluateWinner();
+            }
+        }
+
+        function revealDealerHand() {
+            dealerCardsDiv.innerHTML = '';
+            for (let card of dealerHand) {
+                const cardDiv = document.createElement('div');
+                cardDiv.classList.add('card');
+                cardDiv.textContent = card.value + card.suit;
+                dealerCardsDiv.appendChild(cardDiv);
+            }
+        }
+
+        function evaluateWinner() {
+            revealDealerHand();
+            // Simplified winner determination for demonstration
+            let playerScore = calculateHandScore([...playerHand, ...communityCards]);
+            let dealerScore = calculateHandScore([...dealerHand, ...communityCards]);
+
+            if (playerScore > dealerScore && !playerFolded) {
+                messageDiv.textContent = 'You win the pot!';
+                balance += pot;
+            } else {
+                messageDiv.textContent = 'Dealer wins the pot!';
+            }
+            endHand();
+        }
+
+        function endHand() {
+            balanceSpan.textContent = balance;
+            pot = 0;
+            potSpan.textContent = pot;
+            betBtn.disabled = true;
+            callBtn.disabled = true;
+            foldBtn.disabled = true;
+            newHandBtn.style.display = 'inline';
+        }
+
+        function calculateHandScore(hand) {
+            // Placeholder function for scoring hands - this would involve complex hand ranking in a full game
+            return hand.length;
+        }
+
+        betBtn.addEventListener('click', bet);
+        callBtn.addEventListener('click', call);
+        foldBtn.addEventListener('click', fold);
+        newHandBtn.addEventListener('click', startNewHand);
+
+        startNewHand();
+    </script>
+</body>
+</html>
